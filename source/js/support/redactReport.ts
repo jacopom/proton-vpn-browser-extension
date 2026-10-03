@@ -1,6 +1,6 @@
 /** Keys whose values must never be sent, wherever they appear in the report. */
 const sensitiveKey =
-	/token|password|passwd|secret|credential|authorization|cookie|session|^uid$|^creds/i;
+	/^(?:.*token|.*password|passwd|.*secret|credentials?|authorization|(?:set-)?cookies?|session(?:id)?|uid|creds.*)$/i;
 
 /** Values that look like bearer tokens or basic-auth URLs. */
 const sensitiveValue = /(?:bearer\s+[\w.~+/-]{10,}|\/\/[^/\s:@]+:[^/\s@]+@)/i;

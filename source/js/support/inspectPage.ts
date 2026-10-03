@@ -44,6 +44,21 @@ export function inspectPage(maxTextLength: number): RawPageInspection {
 		}
 	});
 
+	const scriptHosts: string[] = [];
+	document.querySelectorAll('script[src]').forEach((script) => {
+		const src = stripQuery(script.getAttribute('src') || '');
+		const host = src.split('/')[0] || '';
+
+		if (
+			host &&
+			host !== location.host &&
+			scriptHosts.length < 40 &&
+			scriptHosts.indexOf(host) === -1
+		) {
+			scriptHosts.push(host);
+		}
+	});
+
 	const fullText = (document.body ? document.body.innerText : '')
 		.split('\n')
 		.map((line) => line.replace(/[ \t\f\v\r]+/g, ' ').trim())
@@ -68,6 +83,7 @@ export function inspectPage(maxTextLength: number): RawPageInspection {
 				: fullText,
 		textLength: fullText.length,
 		frameHosts,
+		scriptHosts,
 		metaRefresh: refresh
 			? clean((refresh.getAttribute('content') || '').split('?')[0], 200)
 			: undefined,

@@ -2,11 +2,11 @@
 import {getCurrentState} from '../state';
 import {getRecords} from '../log/record';
 import {timeoutAfter} from '../tools/delay';
-import {getTabNetworkErrors} from './networkErrors';
+import {getTabNetworkLog} from './tabNetworkLog';
 import type {SettingStatus, SupportDiagnostics} from './SupportReport';
 
-const maxLogs = 50;
-const maxLogEntryLength = 1000;
+const maxLogs = 40;
+const maxLogLineLength = 400;
 
 const readSetting = (
 	setting:
@@ -28,16 +28,47 @@ const readSetting = (
 			).catch(() => undefined)
 		: Promise.resolve(undefined);
 
-const truncateLog = (entry: unknown) => {
-	try {
-		const json = JSON.stringify(entry);
-
-		return json.length > maxLogEntryLength
-			? json.slice(0, maxLogEntryLength) + '…'
-			: entry;
-	} catch {
-		return `${entry}`;
+const describe = (value: unknown): string => {
+	if (typeof value === 'string') {
+		return value;
 	}
+
+	if (value instanceof Error) {
+		return `${value.name}: ${value.message}`;
+	}
+
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return `${value}`;
+	}
+};
+
+/**
+ * Turn a log record (`[timestamp, [level, ...params]]`, possibly nested once more
+ * when it comes from the popup) into a single readable line.
+ */
+export const formatLogRecord = (entry: unknown): string => {
+	if (!Array.isArray(entry)) {
+		return describe(entry).slice(0, maxLogLineLength);
+	}
+
+	const [time, ...rest] = entry;
+	let params: unknown[] = rest;
+
+	while (params.length === 1 && Array.isArray(params[0])) {
+		params = params[0] as unknown[];
+	}
+
+	const date = typeof time === 'number' ? new Date(time) : undefined;
+	const line = [
+		date && !isNaN(date.getTime()) ? date.toISOString() : `${time}`,
+		...params.map(describe),
+	].join(' ');
+
+	return line.length > maxLogLineLength
+		? line.slice(0, maxLogLineLength) + '…'
+		: line;
 };
 
 /**
@@ -51,17 +82,15 @@ export const getSupportDiagnostics = async (
 	const {server, error} = state.data;
 	const chromeApi = browser as any as typeof chrome;
 
-	const [browserProxySettings, webRtcPolicy, networkErrors] = await Promise.all(
-		[
-			// Only the mode: the PAC script itself holds the server list
-			readSetting(chromeApi.proxy?.settings, (value) => value?.mode),
-			readSetting(
-				chromeApi.privacy?.network?.webRTCIPHandlingPolicy,
-				(value) => value,
-			),
-			typeof tabId === 'number' ? getTabNetworkErrors(tabId) : [],
-		],
-	);
+	const [browserProxySettings, webRtcPolicy, networkLog] = await Promise.all([
+		// Only the mode: the PAC script itself holds the server list
+		readSetting(chromeApi.proxy?.settings, (value) => value?.mode),
+		readSetting(
+			chromeApi.privacy?.network?.webRTCIPHandlingPolicy,
+			(value) => value,
+		),
+		typeof tabId === 'number' ? getTabNetworkLog(tabId) : undefined,
+	]);
 
 	return {
 		connection: {
@@ -99,7 +128,8 @@ export const getSupportDiagnostics = async (
 		},
 		browserProxySettings,
 		webRtcPolicy,
-		networkErrors,
-		recentLogs: getRecords().slice(0, maxLogs).map(truncateLog),
+		networkErrors: networkLog?.errors || [],
+		document: networkLog?.document,
+		recentLogs: getRecords().slice(0, maxLogs).map(formatLogRecord),
 	};
 };

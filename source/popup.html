@@ -809,6 +809,24 @@
 							</label>
 
 							<label class="support-report-field">
+								<span data-trans data-context="Label">Does the site work with the VPN turned off?</span>
+								<select name="support-without-vpn">
+									<option value="not-tried" data-trans data-context="Option">I haven't tried</option>
+									<option value="yes" data-trans data-context="Option">Yes, it works without the VPN</option>
+									<option value="no" data-trans data-context="Option">No, it fails without the VPN too</option>
+								</select>
+							</label>
+
+							<label class="support-report-field">
+								<span data-trans data-context="Label">Does it work with another server?</span>
+								<select name="support-other-server">
+									<option value="not-tried" data-trans data-context="Option">I haven't tried</option>
+									<option value="yes" data-trans data-context="Option">Yes, another server works</option>
+									<option value="no" data-trans data-context="Option">No, other servers fail too</option>
+								</select>
+							</label>
+
+							<label class="support-report-field">
 								<span data-trans data-context="Label">Details (optional)</span>
 								<textarea name="support-description" rows="3"></textarea>
 							</label>
@@ -818,12 +836,23 @@
 								<span data-trans data-context="Label">Include the page title, visible text and error messages</span>
 							</label>
 
+							<label class="support-report-checkbox support-report-screenshot-option" hidden>
+								<input type="checkbox" name="support-include-screenshot" checked>
+								<span data-trans data-context="Label">Attach a screenshot of the page</span>
+							</label>
+							<img class="support-report-screenshot" alt="Screenshot of the page" hidden>
+
+							<div class="support-report-findings-block">
+								<strong data-trans data-context="Label">What we found</strong>
+								<ul class="support-report-findings"></ul>
+							</div>
+
 							<div class="support-report-privacy" data-trans>
-								The report also contains the page address without its parameters, failed requests, your VPN server, settings, browser version and recent extension logs. Passwords and tokens are never included.
+								The report also contains the page address without its parameters, how the site responded (status, redirects, security service headers and cookie names, never cookie values), failed requests, your VPN server, settings, browser version and recent extension logs. Passwords and tokens are never included.
 							</div>
 
 							<details class="support-report-preview">
-								<summary data-trans data-context="Action">See what will be sent</summary>
+								<summary data-trans data-context="Action">See the full report</summary>
 								<pre></pre>
 							</details>
 

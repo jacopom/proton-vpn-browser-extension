@@ -4,18 +4,23 @@ import {triggerPromise} from '../../tools/triggerPromise';
 import {warn} from '../../log/log';
 import {
 	collectSupportReport,
+	finalizeReport,
 	suggestCategory,
-	withoutPageContent,
 } from '../../support/collectSupportReport';
 import {submitSupportReport} from '../../support/submitSupportReport';
 import {redactReport} from '../../support/redactReport';
 import type {
 	SupportIssueCategory,
 	SupportReport,
+	TriedAnswer,
 } from '../../support/SupportReport';
 import {showModal} from './modals';
 
 const maxDescriptionLength = 2000;
+
+/** Size of a base64 data URL once decoded, in KB. */
+const dataUrlKiloBytes = (dataUrl: string) =>
+	Math.round(((dataUrl.length - dataUrl.indexOf(',') - 1) * 3) / 4 / 1024);
 
 /**
  * "Report a problem" dialog: collects diagnostics about the current tab,
@@ -33,26 +38,35 @@ export const configureSupportReportModal = (area: HTMLElement) => {
 
 	openButton.dataset['supportReport'] = 'set';
 
-	const site = modal.querySelector<HTMLDivElement>('.support-report-site')!;
-	const category = modal.querySelector<HTMLSelectElement>(
-		'[name="support-category"]',
-	)!;
-	const description = modal.querySelector<HTMLTextAreaElement>(
+	const field = <T extends Element>(selector: string) =>
+		modal.querySelector<T>(selector)!;
+	const site = field<HTMLDivElement>('.support-report-site');
+	const category = field<HTMLSelectElement>('[name="support-category"]');
+	const withoutVpn = field<HTMLSelectElement>('[name="support-without-vpn"]');
+	const otherServer = field<HTMLSelectElement>('[name="support-other-server"]');
+	const description = field<HTMLTextAreaElement>(
 		'[name="support-description"]',
-	)!;
-	const includePageContent = modal.querySelector<HTMLInputElement>(
+	);
+	const includePageContent = field<HTMLInputElement>(
 		'[name="support-include-page"]',
-	)!;
-	const preview = modal.querySelector<HTMLPreElement>(
-		'.support-report-preview pre',
-	)!;
-	const status = modal.querySelector<HTMLDivElement>('.support-report-status')!;
-	const sendButton = modal.querySelector<HTMLButtonElement>(
-		'[data-support-report-send]',
-	)!;
-	const cancelButton = modal.querySelector<HTMLButtonElement>(
-		'[data-support-report-cancel]',
-	)!;
+	);
+	const includeScreenshot = field<HTMLInputElement>(
+		'[name="support-include-screenshot"]',
+	);
+	const screenshotOption = field<HTMLLabelElement>(
+		'.support-report-screenshot-option',
+	);
+	const screenshotImage = field<HTMLImageElement>('.support-report-screenshot');
+	const findings = field<HTMLUListElement>('.support-report-findings');
+	const preview = field<HTMLPreElement>('.support-report-preview pre');
+	const status = field<HTMLDivElement>('.support-report-status');
+	const sendButton = field<HTMLButtonElement>('[data-support-report-send]');
+	const cancelButton = field<HTMLButtonElement>('[data-support-report-cancel]');
+	const inputs = Array.from(
+		modal.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+			'main select, main textarea, main input',
+		),
+	);
 
 	description.maxLength = maxDescriptionLength;
 	description.placeholder = c('Placeholder')
@@ -68,43 +82,67 @@ export const configureSupportReportModal = (area: HTMLElement) => {
 		status.classList.toggle('success', type === 'success');
 	};
 
-	const getFinalReport = (): SupportReport | undefined => {
-		if (!report) {
-			return undefined;
+	const getFinalReport = (): SupportReport | undefined =>
+		report &&
+		finalizeReport(report, {
+			category: category.value as SupportIssueCategory,
+			description: description.value.trim().slice(0, maxDescriptionLength),
+			worksWithoutVpn: withoutVpn.value as TriedAnswer,
+			worksWithOtherServer: otherServer.value as TriedAnswer,
+			includePageContent: includePageContent.checked,
+			includeScreenshot: includeScreenshot.checked,
+		});
+
+	const refresh = () => {
+		const finalReport = getFinalReport();
+		const screenshot = report?.site?.screenshot;
+
+		screenshotOption.hidden = !screenshot;
+		screenshotImage.hidden = !screenshot || !includeScreenshot.checked;
+
+		if (screenshot && screenshotImage.src !== screenshot) {
+			screenshotImage.src = screenshot;
 		}
 
-		const base = includePageContent.checked
-			? report
-			: withoutPageContent(report);
+		findings.replaceChildren(
+			...(finalReport?.summary || []).map((line) => {
+				const item = document.createElement('li');
+				item.textContent = line;
+				item.classList.toggle('warning', line.startsWith('⚠'));
 
-		return {
-			...base,
-			issue: {
-				category: category.value as SupportIssueCategory,
-				description: description.value.trim().slice(0, maxDescriptionLength),
-			},
-		};
-	};
+				return item;
+			}),
+		);
 
-	const refreshPreview = () => {
-		const finalReport = getFinalReport();
 		preview.textContent = finalReport
-			? JSON.stringify(finalReport, null, 2)
+			? JSON.stringify(
+					finalReport,
+					(key, value) =>
+						key === 'screenshot' && typeof value === 'string'
+							? `[JPEG screenshot, ${dataUrlKiloBytes(value)} KB, shown above]`
+							: value,
+					2,
+				)
 			: '';
 	};
 
 	const resetForm = () => {
 		report = undefined;
 		description.value = '';
+		category.selectedIndex = 0;
+		withoutVpn.value = 'not-tried';
+		otherServer.value = 'not-tried';
 		includePageContent.checked = true;
+		includeScreenshot.checked = true;
+		screenshotImage.removeAttribute('src');
 		site.textContent = '';
-		preview.textContent = '';
+		inputs.forEach((input) => {
+			input.disabled = false;
+		});
 		sendButton.disabled = true;
 		sendButton.hidden = false;
-		description.disabled = false;
-		category.disabled = false;
-		includePageContent.disabled = false;
 		cancelButton.textContent = c('Action').t`Cancel`;
+		refresh();
 	};
 
 	const open = async () => {
@@ -126,7 +164,7 @@ export const configureSupportReportModal = (area: HTMLElement) => {
 			site.textContent = hostname
 				? c('Info').t`About ${hostname}`
 				: c('Info').t`No website open in the current tab`;
-			refreshPreview();
+			refresh();
 			sendButton.disabled = false;
 			setStatus('');
 		} catch (error) {
@@ -155,14 +193,17 @@ export const configureSupportReportModal = (area: HTMLElement) => {
 			const receipt = await submitSupportReport(redactReport(finalReport));
 			const reference = receipt.reference;
 			setStatus(
-				c('Success')
-					.t`Report sent. Customer Support may contact you by email. Reference: ${reference}`,
+				receipt.stub
+					? c('Info')
+							.t`Test mode: the report was NOT sent, the support API is not connected yet. The full report is in the popup console. Reference: ${reference}`
+					: c('Success')
+							.t`Report sent. Customer Support may contact you by email. Reference: ${reference}`,
 				'success',
 			);
 			sendButton.hidden = true;
-			description.disabled = true;
-			category.disabled = true;
-			includePageContent.disabled = true;
+			inputs.forEach((input) => {
+				input.disabled = true;
+			});
 			cancelButton.textContent = c('Action').t`Close`;
 		} catch (error) {
 			warn(error);
@@ -176,10 +217,10 @@ export const configureSupportReportModal = (area: HTMLElement) => {
 
 	openButton.addEventListener('click', () => triggerPromise(open()));
 	sendButton.addEventListener('click', () => triggerPromise(send()));
-	[category, includePageContent].forEach((input) =>
-		input.addEventListener('change', refreshPreview),
-	);
-	description.addEventListener('input', refreshPreview);
+	inputs.forEach((input) => {
+		input.addEventListener('change', refresh);
+		input.addEventListener('input', refresh);
+	});
 	modal.addEventListener('close', () => {
 		// Drop collected data as soon as the dialog is dismissed
 		collectionId++;

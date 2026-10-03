@@ -1936,6 +1936,40 @@ details {
 				}
 			}
 
+			.support-report-screenshot {
+				align-self: stretch;
+				width: 100%;
+				max-height: 180px;
+				object-fit: cover;
+				object-position: top;
+				border: 1px solid var(--border-border-norm, #4a4658);
+				border-radius: 4px;
+			}
+
+			.support-report-findings-block {
+				align-self: stretch;
+				font-size: 12px;
+				line-height: 16px;
+				color: var(--text-norm, #fff);
+
+				ul {
+					margin: 4px 0 0;
+					padding: 0 0 0 16px;
+					max-height: 200px;
+					overflow-y: auto;
+				}
+
+				li {
+					margin: 0 0 4px;
+					color: var(--text-weak, #a7a4b5);
+					overflow-wrap: anywhere;
+
+					&.warning {
+						color: var(--signal-warning, #f90);
+					}
+				}
+			}
+
 			.support-report-status {
 				min-height: 16px;
 				font-size: 12px;
@@ -1949,6 +1983,10 @@ details {
 				&.success {
 					color: var(--signal-success, #1ea885);
 				}
+			}
+
+			[hidden] {
+				display: none !important;
 			}
 		}
 	}

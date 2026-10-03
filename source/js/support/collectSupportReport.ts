@@ -8,7 +8,12 @@ import {getGlobalBrowser} from '../tools/getGlobalBrowser';
 import {timeoutAfter} from '../tools/delay';
 import {loadAllFeatures} from '../vpn/features/loadAllFeatures';
 import {SplitTunnelingMode} from '../vpn/WebsiteFilter';
+import {getLogicalById} from '../vpn/getLogicals';
+import {Feature} from '../vpn/Feature';
 import {detectPageSignals} from './detectPageSignals';
+import {detectProtection, findBlockReferences} from './detectProtection';
+import {captureScreenshot} from './captureScreenshot';
+import {buildSummary} from './buildSummary';
 import {inspectPage} from './inspectPage';
 import {stripUrl} from './stripUrl';
 import {redactReport} from './redactReport';
@@ -16,9 +21,11 @@ import {
 	type PageInspection,
 	PageSignalType,
 	type RawPageInspection,
+	type ServerDetails,
 	type SupportDiagnostics,
 	SupportIssueCategory,
 	type SupportReport,
+	type TriedAnswer,
 } from './SupportReport';
 
 type Tab = chrome.tabs.Tab;
@@ -130,6 +137,7 @@ const inspectTab = async (tab: Tab): Promise<PageInspection> => {
 			textExcerpt: raw.text,
 			textLength: raw.textLength,
 			frameHosts: raw.frameHosts,
+			scriptHosts: raw.scriptHosts,
 			metaRefresh: raw.metaRefresh,
 			navigation: raw.navigation,
 			signals: detectPageSignals(raw),
@@ -192,6 +200,45 @@ const getAccount = async (): Promise<SupportReport['account']> => {
 	return {plan: user?.VPN?.PlanName, maxTier: user?.VPN?.MaxTier};
 };
 
+const featureNames: [Feature, string][] = [
+	[Feature.SECURE_CORE, 'Secure Core'],
+	[Feature.TOR, 'Tor'],
+	[Feature.P2P, 'P2P'],
+	[Feature.STREAMING, 'Streaming'],
+	[Feature.IPV6, 'IPv6'],
+	[Feature.RESTRICTED, 'Restricted'],
+	[Feature.PARTNER, 'Partner'],
+];
+
+/** Details of the connected server from the server list loaded by the popup. */
+const getServerDetails = (
+	server: SupportDiagnostics['connection']['server'],
+): ServerDetails | undefined => {
+	const logical = server ? getLogicalById(server.id) : undefined;
+
+	if (!server || !logical) {
+		return undefined;
+	}
+
+	const physical = logical.Servers?.find(
+		(candidate) => candidate.ExitIP === server.exitIp,
+	);
+
+	return {
+		domain: logical.Domain,
+		tier: logical.Tier,
+		features: featureNames
+			.filter(([flag]) => (logical.Features & flag) !== 0)
+			.map(([, name]) => name),
+		city: logical.City,
+		hostCountry: logical.HostCountry,
+		load: physical?.Load ?? logical.Load,
+		serverLabel: physical?.Label,
+		serverStatus: physical?.Status,
+		servicesDownReason: physical?.ServicesDownPublicReason,
+	};
+};
+
 const getEnvironment = async (): Promise<SupportReport['environment']> => {
 	const nav = navigator as Navigator & {userAgentData?: {platform?: string}};
 
@@ -214,7 +261,17 @@ export const suggestCategory = (
 		(signal) => signal.type,
 	);
 
-	if (signalTypes.includes(PageSignalType.VPN_DETECTED)) {
+	const blocked =
+		signalTypes.includes(PageSignalType.ACCESS_DENIED) ||
+		signalTypes.includes(PageSignalType.BOT_CHALLENGE);
+
+	// A site refusing a visitor connected through the VPN is most likely detecting the VPN
+	if (
+		signalTypes.includes(PageSignalType.VPN_DETECTED) ||
+		(blocked &&
+			(report.connection.server ||
+				signalTypes.includes(PageSignalType.VPN_MENTIONED)))
+	) {
 		return SupportIssueCategory.VPN_DETECTED;
 	}
 
@@ -223,7 +280,7 @@ export const suggestCategory = (
 	}
 
 	if (
-		signalTypes.length ||
+		signalTypes.some((type) => type !== PageSignalType.VPN_MENTIONED) ||
 		report.site?.page.unavailableReason ||
 		report.networkErrors.some((entry) => entry.type === 'main_frame')
 	) {
@@ -259,8 +316,8 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 	const tabUrl = tab?.url || tab?.pendingUrl;
 	const webTab = tab && isWebPage(tabUrl) ? tab : undefined;
 
-	const [page, diagnostics, settings, account, environment] = await Promise.all(
-		[
+	const [page, diagnostics, settings, account, environment, screenshot] =
+		await Promise.all([
 			webTab ? inspectTab(webTab) : undefined,
 			attempt(
 				'Connection diagnostics',
@@ -272,8 +329,10 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 			attempt('Settings', getSettings()),
 			attempt('Account', getAccount()),
 			getEnvironment(),
-		],
-	);
+			webTab && typeof webTab.windowId === 'number'
+				? attempt('Screenshot', captureScreenshot(webTab.windowId))
+				: undefined,
+		]);
 
 	const hostname = webTab ? new URL(tabUrl as string).hostname : undefined;
 	const pageLoadError = diagnostics?.networkErrors
@@ -289,10 +348,38 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 		});
 	}
 
+	// The recorded document must be the page currently displayed, not a previous one
+	const document =
+		diagnostics?.document &&
+		hostname &&
+		new URL(diagnostics.document.url).hostname === hostname
+			? diagnostics.document
+			: undefined;
+	const pageText = [
+		page?.title,
+		...(page?.headings || []),
+		page?.textExcerpt,
+	].join('\n');
+	const hosts = [
+		...(page?.scriptHosts || []),
+		...(page?.frameHosts || []),
+		...(page?.frameHosts || []).map((frame) => frame.split('/')[0] || ''),
+	];
+	const connection = diagnostics?.connection || {
+		state: 'unknown',
+		proxyEnabled: false,
+	};
+
 	return redactReport({
-		version: 1,
+		version: 2,
 		createdAt: new Date().toISOString(),
-		issue: {category: SupportIssueCategory.OTHER, description: ''},
+		summary: [],
+		issue: {
+			category: SupportIssueCategory.OTHER,
+			description: '',
+			worksWithoutVpn: 'not-tried',
+			worksWithOtherServer: 'not-tried',
+		},
 		site:
 			webTab && page && hostname
 				? {
@@ -304,11 +391,15 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 							diagnostics?.connection.splitTunneling,
 						),
 						page,
+						document,
+						protection: detectProtection({document, hosts, text: pageText}),
+						blockReferences: findBlockReferences({document, text: pageText}),
+						screenshot,
 					}
 				: undefined,
-		connection: diagnostics?.connection || {
-			state: 'unknown',
-			proxyEnabled: false,
+		connection: {
+			...connection,
+			serverDetails: getServerDetails(connection.server),
 		},
 		settings: settings || {},
 		browserProxySettings: diagnostics?.browserProxySettings,
@@ -341,8 +432,41 @@ export const withoutPageContent = (report: SupportReport): SupportReport => {
 				lang: page.lang,
 				navigation: page.navigation,
 				frameHosts: page.frameHosts,
+				scriptHosts: page.scriptHosts,
 				signals: page.signals.map(({type, source}) => ({type, source})),
 			},
 		},
 	};
+};
+
+export interface ReportChoices {
+	category: SupportIssueCategory;
+	description: string;
+	worksWithoutVpn: TriedAnswer;
+	worksWithOtherServer: TriedAnswer;
+	includePageContent: boolean;
+	includeScreenshot: boolean;
+}
+
+/** Apply the user's answers and choices, then summarize the findings. */
+export const finalizeReport = (
+	report: SupportReport,
+	choices: ReportChoices,
+): SupportReport => {
+	const base = choices.includePageContent ? report : withoutPageContent(report);
+	const finalReport: SupportReport = {
+		...base,
+		issue: {
+			category: choices.category,
+			description: choices.description,
+			worksWithoutVpn: choices.worksWithoutVpn,
+			worksWithOtherServer: choices.worksWithOtherServer,
+		},
+		site:
+			base.site && !choices.includeScreenshot
+				? {...base.site, screenshot: undefined}
+				: base.site,
+	};
+
+	return {...finalReport, summary: buildSummary(finalReport)};
 };
