@@ -1,5 +1,6 @@
 import {
 	PageSignalType,
+	type RetryAttempt,
 	SupportIssueCategory,
 	type SupportReport,
 	type TriedAnswer,
@@ -305,6 +306,68 @@ const connectionLines = (report: SupportReport): string[] => {
 	return lines;
 };
 
+const describeRetry = (retry: RetryAttempt) => {
+	const location = retry.server
+		? [
+				[retry.server.exitCity, retry.server.exitCountry]
+					.filter(Boolean)
+					.join(', '),
+				retry.server.exitIp ? `exit IP ${retry.server.exitIp}` : '',
+			]
+				.filter(Boolean)
+				.join(', ')
+		: '';
+	const where = retry.server
+		? `${retry.server.name}${location ? ` (${location})` : ''}`
+		: undefined;
+	const action =
+		retry.kind === 'other-server'
+			? `Switched to ${where || 'another server'} and reloaded`
+			: where
+				? `Reloaded on ${where}`
+				: 'Reloaded with the VPN off';
+
+	if (retry.failure) {
+		return `${action}: check not completed (${retry.failure}).`;
+	}
+
+	const result = [
+		retry.error ||
+			(retry.statusCode !== undefined ? `HTTP ${retry.statusCode}` : undefined),
+		retry.signals
+			.filter((signal) => signal !== PageSignalType.VPN_MENTIONED)
+			.map((signal) => signalLabels[signal])
+			.join(', ') || undefined,
+		retry.blockReferences.length ? retry.blockReferences.join(', ') : undefined,
+	]
+		.filter(Boolean)
+		.join(' — ');
+
+	return `${action}: ${retry.blocked ? 'still failing' : 'the page loaded fine'}${result ? ` (${result})` : ''}${retry.blocked && retry.excerpt ? ` ${quote(retry.excerpt)}` : ''}.`;
+};
+
+const retryLines = (report: SupportReport): string[] => {
+	if (!report.retries.length) {
+		return [];
+	}
+
+	const otherServers = report.retries.filter(
+		(retry) => retry.kind === 'other-server' && !retry.failure,
+	);
+	const working = otherServers.filter((retry) => !retry.blocked);
+
+	return [
+		...(otherServers.length
+			? [
+					working.length
+						? `Retest: the site works on ${working.map((retry) => retry.server?.name).join(', ')} but failed on the original server — likely specific to that server or IP.`
+						: `Retest: still failing on ${otherServers.length} other server${otherServers.length > 1 ? 's' : ''} — likely the site blocks the VPN as a whole, not one IP.`,
+				]
+			: []),
+		...report.retries.map(describeRetry),
+	];
+};
+
 const networkLines = (report: SupportReport): string[] => {
 	const errors = report.networkErrors;
 
@@ -374,6 +437,7 @@ export const buildSummary = (report: SupportReport): string[] => {
 		`Reported: ${categoryLabels[issue.category]}${issue.description ? ` — ${quote(issue.description)}` : ''}.`,
 		`Works with the VPN off: ${answerLabels[issue.worksWithoutVpn]}. Works with another server: ${answerLabels[issue.worksWithOtherServer]}.`,
 		...siteLines(report),
+		...retryLines(report),
 		...connectionLines(report),
 		...networkLines(report),
 		...environmentLines(report),

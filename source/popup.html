@@ -796,6 +796,7 @@
 						<main>
 							<div id="support-report-title" class="title" data-trans data-context="Title">Report a problem</div>
 							<div class="sub-title support-report-site"></div>
+							<button type="button" class="support-report-popout tertiary-button" data-support-report-popout data-trans data-context="Action" data-comment="Moves the support report into its own window so it stays open while the user browses">Open in a window</button>
 
 							<label class="support-report-field">
 								<span data-trans data-context="Label">What's happening?</span>
@@ -825,6 +826,12 @@
 									<option value="no" data-trans data-context="Option">No, other servers fail too</option>
 								</select>
 							</label>
+
+							<div class="support-report-checks">
+								<button type="button" class="tertiary-button" data-support-report-retry data-trans data-context="Action" data-comment="Connects to a similar VPN server, reloads the reported page and records whether it works">Try another server</button>
+								<button type="button" class="tertiary-button" data-support-report-reload data-trans data-context="Action" data-comment="Reloads the reported page and records whether it works">Reload &amp; check again</button>
+							</div>
+							<ul class="support-report-retries" aria-live="polite"></ul>
 
 							<label class="support-report-field">
 								<span data-trans data-context="Label">Details (optional)</span>
@@ -860,7 +867,8 @@
 						</main>
 						<footer>
 							<button data-support-report-send class="primary-button" data-trans data-context="Action" disabled>Send report</button>
-							<button data-modal-default-close data-support-report-cancel class="tertiary-button" data-trans data-context="Action">Cancel</button>
+							<button type="button" data-support-report-restart class="tertiary-button" data-trans data-context="Action" data-comment="Discards the current support report and collects the diagnostics again">Start over</button>
+							<button data-modal-default-close data-support-report-discard class="tertiary-button" data-trans data-context="Action">Discard</button>
 						</footer>
 					</dialog>
 

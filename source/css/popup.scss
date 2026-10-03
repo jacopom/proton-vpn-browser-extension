@@ -1936,6 +1936,52 @@ details {
 				}
 			}
 
+			.support-report-popout {
+				width: auto;
+				padding: 4px 10px;
+				font-size: 12px;
+				line-height: 16px;
+				align-self: center;
+			}
+
+			.support-report-checks {
+				display: flex;
+				gap: 8px;
+				align-self: stretch;
+
+				button {
+					flex: 1;
+					padding: 6px 8px;
+					font-size: 12px;
+					line-height: 16px;
+				}
+			}
+
+			.support-report-retries {
+				align-self: stretch;
+				margin: 0;
+				padding: 0 0 0 16px;
+				font-size: 12px;
+				line-height: 16px;
+
+				&:empty {
+					display: none;
+				}
+
+				li {
+					margin: 0 0 2px;
+					overflow-wrap: anywhere;
+
+					&.ok {
+						color: var(--signal-success, #1ea885);
+					}
+
+					&.warning {
+						color: var(--signal-warning, #f90);
+					}
+				}
+			}
+
 			.support-report-screenshot {
 				align-self: stretch;
 				width: 100%;

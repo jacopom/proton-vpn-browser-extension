@@ -163,6 +163,32 @@ export interface ServerDetails {
 	servicesDownReason?: string | null;
 }
 
+/** Result of re-checking the site from the report dialog (reload, or reload on another server). */
+export interface RetryAttempt {
+	time: number;
+	kind: 'reload' | 'other-server';
+	server?: {
+		id?: string | number;
+		name: string;
+		exitCountry: string;
+		exitCity?: string | null;
+		exitIp: string;
+	};
+	/** Final HTTP status of the page, when it answered. */
+	statusCode?: number;
+	/** net::ERR_* code when the page did not load at all. */
+	error?: string;
+	signals: PageSignalType[];
+	/** First block/error message found on the page. */
+	excerpt?: string;
+	protection: string[];
+	blockReferences: string[];
+	/** True when the page still fails or still shows a block, challenge or error message. */
+	blocked: boolean;
+	/** Set when the check itself could not be completed (popup closed, no other server...). */
+	failure?: string;
+}
+
 export interface SupportReport {
 	version: 2;
 	createdAt: string;
@@ -180,6 +206,8 @@ export interface SupportReport {
 		/** Origin and path only: query string and fragment are dropped. */
 		url: string;
 		hostname: string;
+		/** Browser tab of the report, to re-check the same page (not sent to support). */
+		tabId?: number;
 		tabStatus?: string;
 		/** How split tunneling treats this site in the active connection. */
 		splitTunneling?: {
@@ -199,6 +227,8 @@ export interface SupportReport {
 	connection: SupportDiagnostics['connection'] & {
 		serverDetails?: ServerDetails;
 	};
+	/** Re-checks done from the dialog, oldest first. */
+	retries: RetryAttempt[];
 	settings: Record<string, unknown>;
 	browserProxySettings?: SettingStatus;
 	webRtcPolicy?: SettingStatus;

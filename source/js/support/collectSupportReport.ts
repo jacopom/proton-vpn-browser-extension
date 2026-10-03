@@ -64,11 +64,15 @@ const isWebPage = (url: string | undefined): url is string =>
  * The tab the user is looking at. When the popup is opened as a page of its own
  * (e.g. detached), fall back to the most recently used tab in another window.
  */
-const getInspectedTab = async (): Promise<Tab | undefined> => {
+const getInspectedTab = async (tabId?: number): Promise<Tab | undefined> => {
 	const tabs = (getGlobalBrowser() as any as typeof chrome).tabs;
 
 	if (!tabs?.query) {
 		return undefined;
+	}
+
+	if (typeof tabId === 'number') {
+		return await tabs.get(tabId);
 	}
 
 	const ownPrefix = (getGlobalBrowser() as any as typeof chrome).runtime.getURL(
@@ -296,7 +300,16 @@ export const suggestCategory = (
  * environment. Each source is optional: a failure is listed in
  * `collectionErrors` instead of aborting the report.
  */
-export const collectSupportReport = async (): Promise<SupportReport> => {
+export interface CollectOptions {
+	/** Inspect this tab instead of the one the user is looking at. */
+	tabId?: number;
+	/** Capture the visible page (default: true). */
+	screenshot?: boolean;
+}
+
+export const collectSupportReport = async (
+	options: CollectOptions = {},
+): Promise<SupportReport> => {
 	const collectionErrors: string[] = [];
 	const attempt = async <T>(
 		label: string,
@@ -312,7 +325,7 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 		}
 	};
 
-	const tab = await attempt('Active tab', getInspectedTab());
+	const tab = await attempt('Active tab', getInspectedTab(options.tabId));
 	const tabUrl = tab?.url || tab?.pendingUrl;
 	const webTab = tab && isWebPage(tabUrl) ? tab : undefined;
 
@@ -329,7 +342,7 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 			attempt('Settings', getSettings()),
 			attempt('Account', getAccount()),
 			getEnvironment(),
-			webTab && typeof webTab.windowId === 'number'
+			webTab && webTab.active && options.screenshot !== false
 				? attempt('Screenshot', captureScreenshot(webTab.windowId))
 				: undefined,
 		]);
@@ -385,6 +398,7 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 				? {
 						url: stripUrl(tabUrl as string),
 						hostname,
+						tabId: webTab.id,
 						tabStatus: webTab.status,
 						splitTunneling: getSplitTunnelingStatus(
 							hostname,
@@ -401,6 +415,7 @@ export const collectSupportReport = async (): Promise<SupportReport> => {
 			...connection,
 			serverDetails: getServerDetails(connection.server),
 		},
+		retries: [],
 		settings: settings || {},
 		browserProxySettings: diagnostics?.browserProxySettings,
 		webRtcPolicy: diagnostics?.webRtcPolicy,
@@ -452,20 +467,25 @@ export interface ReportChoices {
 export const finalizeReport = (
 	report: SupportReport,
 	choices: ReportChoices,
+	retries: SupportReport['retries'] = [],
 ): SupportReport => {
 	const base = choices.includePageContent ? report : withoutPageContent(report);
 	const finalReport: SupportReport = {
 		...base,
+		retries: choices.includePageContent
+			? retries
+			: retries.map(({excerpt: _excerpt, ...retry}) => retry),
 		issue: {
 			category: choices.category,
 			description: choices.description,
 			worksWithoutVpn: choices.worksWithoutVpn,
 			worksWithOtherServer: choices.worksWithOtherServer,
 		},
-		site:
-			base.site && !choices.includeScreenshot
-				? {...base.site, screenshot: undefined}
-				: base.site,
+		site: base.site && {
+			...base.site,
+			tabId: undefined,
+			screenshot: choices.includeScreenshot ? base.site.screenshot : undefined,
+		},
 	};
 
 	return {...finalReport, summary: buildSummary(finalReport)};
