@@ -25,6 +25,7 @@ export enum BackgroundData {
 	PM_USER = 'pmUser',
 	STATE = 'state',
 	LOCALE = 'locale',
+	SUPPORT_DIAGNOSTICS = 'supportDiagnostics',
 }
 
 export type BackgroundExtraData = {

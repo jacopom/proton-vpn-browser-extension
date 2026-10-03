@@ -121,6 +121,7 @@ import {configureGoToButtons} from './components/goToButton';
 import {updateAccessSentenceWithCounts} from './components/accessSentence';
 import {configureLinks, setNewTabLinkTitle} from './components/links';
 import {configureModalButtons} from './components/modals/modals';
+import {configureSupportReportModal} from './components/modals/supportReportModal';
 import {
 	configureRatingModalButtons,
 	maybeShowRatingModal,
@@ -1449,6 +1450,7 @@ export const start = async (area: HTMLElement) => {
 
 	configureModalButtons(area.querySelector<HTMLDivElement>('#modals')!);
 	configureRatingModalButtons(rateUsModal);
+	configureSupportReportModal(area);
 
 	watchBroadcastMessages({
 		logicalUpdate(logicalsInput: Logical[]) {
