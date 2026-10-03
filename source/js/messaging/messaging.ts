@@ -20,6 +20,7 @@ import {setupHandleProxyRequest} from '../tools/setupHandleProxyRequest';
 import {sendMessageToBackground} from '../tools/sendMessageToBackground';
 import {record} from '../log/record';
 import {forkSession} from './forkSession';
+import {getSupportDiagnostics} from '../support/getSupportDiagnostics';
 import type {Logical} from '../vpn/Logical';
 import type {Server} from '../vpn/Server';
 import type {SplitTunnelingConfig} from '../vpn/ConnectionState';
@@ -80,6 +81,11 @@ export const routeMessage = async <T extends BackgroundMessage>(message: {
 
 		case BackgroundData.STATE:
 			return getCurrentState().data;
+
+		case BackgroundData.SUPPORT_DIAGNOSTICS:
+			return await getSupportDiagnostics(
+				(data as {tabId?: number} | undefined)?.tabId,
+			);
 
 		case StateChange.DISCONNECT:
 			disconnect();

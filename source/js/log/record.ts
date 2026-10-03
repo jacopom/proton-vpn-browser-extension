@@ -17,7 +17,10 @@ storedRecords.get().then((previousRecords) => {
 	}
 });
 
-(global as any).getLogs = () => records.slice();
+/** Recent log records, newest first: `[timestamp, ...params]`. */
+export const getRecords = () => records.slice();
+
+(global as any).getLogs = getRecords;
 
 export const record = (...params: any[]) => {
 	if (isInBackground()) {

@@ -87,7 +87,11 @@ module.exports = (_, argv, options) => {
 			(permission) =>
 				permission !== 'webRequestAuthProvider' && permission !== 'proxy',
 		);
-		manifest.permissions.push('activeTab', 'webRequestBlocking');
+		['activeTab', 'webRequestBlocking'].forEach((permission) => {
+			if (!manifest.permissions.includes(permission)) {
+				manifest.permissions.push(permission);
+			}
+		});
 		delete manifest.key;
 		delete manifest.externally_connectable;
 		delete manifest.storage;

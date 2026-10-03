@@ -52,6 +52,7 @@
 		"ws://*/"
 	],
 	"permissions": [
+		"activeTab",
 		"idle",
 		"notifications",
 		"privacy",

@@ -11,10 +11,12 @@ import {initIdleWatcher} from './vpn/initIdleWatcher';
 import {initAuthInterceptor} from './vpn/initAuthInterceptor';
 import {initSentry} from './tools/sentry';
 import {setProxyToWaiterHost} from './tools/proxy';
+import {initTabNetworkLog} from './support/tabNetworkLog';
 
 triggerPromise(setProxyToWaiterHost());
 initSentry();
 initAuthInterceptor();
+initTabNetworkLog();
 initMessaging();
 setTimeout(initState, 1);
 setupHandleProxyRequest();

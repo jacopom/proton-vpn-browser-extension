@@ -473,6 +473,28 @@
 								</div>
 							</div>
 						</div>
+
+						<div class="action-block">
+							<div class="action-description">
+								<svg class="action-icon small-icon" viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+									<path fill-rule="evenodd" clip-rule="evenodd" d="M4.5 2.25a.75.75 0 0 1 .75.75v.6l1.6-.4a8.25 8.25 0 0 1 5.7.62l.2.1a6.75 6.75 0 0 0 4.66.5l2.4-.6a.75.75 0 0 1 .94.73v9.6a.75.75 0 0 1-.57.73l-2.4.6a8.25 8.25 0 0 1-5.7-.62l-.2-.1a6.75 6.75 0 0 0-4.66-.5l-1.97.5V21a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75Zm.75 11.98 1.6-.4a8.25 8.25 0 0 1 5.7.62l.2.1a6.75 6.75 0 0 0 4.66.5l1.84-.46V5.71l-1.47.37a8.25 8.25 0 0 1-5.7-.62l-.2-.1a6.75 6.75 0 0 0-4.66-.5l-1.97.5v8.87Z"/>
+								</svg>
+
+								<div class="action-text">
+									<div><strong data-trans data-context="Label" data-comment="Title above the button to report a problem with the website open in the current tab">
+										Problem with a website?
+									</strong></div>
+
+									<div class="weak-text" data-trans>
+										Send Customer Support a report about the site in your current tab, with the technical details they need to investigate.
+									</div>
+
+									<button id="support-report-button" class="primary-button" data-trans data-context="Action" data-comment="Opens the dialog to report a problem with the website in the current tab">
+										Report a problem
+									</button>
+								</div>
+							</div>
+						</div>
 					</div>
 
 
@@ -767,6 +789,86 @@
 						<footer>
 							<button data-modal-default-close data-rate-us-click id="store-button" class="primary-button" data-trans>Leave a rating</button>
 							<button data-modal-default-close data-rate-us-dismiss id="not-now-button" class="tertiary-button" data-trans>Not now</button>
+						</footer>
+					</dialog>
+
+					<dialog id="support-report" aria-labelledby="support-report-title">
+						<main>
+							<div id="support-report-title" class="title" data-trans data-context="Title">Report a problem</div>
+							<div class="sub-title support-report-site"></div>
+							<button type="button" class="support-report-popout tertiary-button" data-support-report-popout data-trans data-context="Action" data-comment="Moves the support report into its own window so it stays open while the user browses">Open in a window</button>
+
+							<label class="support-report-field">
+								<span data-trans data-context="Label">What's happening?</span>
+								<select name="support-category">
+									<option value="vpn-detected" data-trans data-context="Option">The site detects or blocks the VPN</option>
+									<option value="site-unreachable" data-trans data-context="Option">The site doesn't load or shows an error</option>
+									<option value="wrong-location" data-trans data-context="Option">The site shows content for the wrong country</option>
+									<option value="slow" data-trans data-context="Option">The site is slow</option>
+									<option value="other" data-trans data-context="Option">Something else</option>
+								</select>
+							</label>
+
+							<label class="support-report-field">
+								<span data-trans data-context="Label">Does the site work with the VPN turned off?</span>
+								<select name="support-without-vpn">
+									<option value="not-tried" data-trans data-context="Option">I haven't tried</option>
+									<option value="yes" data-trans data-context="Option">Yes, it works without the VPN</option>
+									<option value="no" data-trans data-context="Option">No, it fails without the VPN too</option>
+								</select>
+							</label>
+
+							<label class="support-report-field">
+								<span data-trans data-context="Label">Does it work with another server?</span>
+								<select name="support-other-server">
+									<option value="not-tried" data-trans data-context="Option">I haven't tried</option>
+									<option value="yes" data-trans data-context="Option">Yes, another server works</option>
+									<option value="no" data-trans data-context="Option">No, other servers fail too</option>
+								</select>
+							</label>
+
+							<div class="support-report-checks">
+								<button type="button" class="tertiary-button" data-support-report-retry data-trans data-context="Action" data-comment="Connects to a similar VPN server, reloads the reported page and records whether it works">Try another server</button>
+								<button type="button" class="tertiary-button" data-support-report-reload data-trans data-context="Action" data-comment="Reloads the reported page and records whether it works">Reload &amp; check again</button>
+							</div>
+							<ul class="support-report-retries" aria-live="polite"></ul>
+
+							<label class="support-report-field">
+								<span data-trans data-context="Label">Details (optional)</span>
+								<textarea name="support-description" rows="3"></textarea>
+							</label>
+
+							<label class="support-report-checkbox">
+								<input type="checkbox" name="support-include-page" checked>
+								<span data-trans data-context="Label">Include the page title, visible text and error messages</span>
+							</label>
+
+							<label class="support-report-checkbox support-report-screenshot-option" hidden>
+								<input type="checkbox" name="support-include-screenshot" checked>
+								<span data-trans data-context="Label">Attach a screenshot of the page</span>
+							</label>
+							<img class="support-report-screenshot" alt="Screenshot of the page" hidden>
+
+							<div class="support-report-findings-block">
+								<strong data-trans data-context="Label">What we found</strong>
+								<ul class="support-report-findings"></ul>
+							</div>
+
+							<div class="support-report-privacy" data-trans>
+								The report also contains the page address without its parameters, how the site responded (status, redirects, security service headers and cookie names, never cookie values), failed requests, your VPN server, settings, browser version and recent extension logs. Passwords and tokens are never included.
+							</div>
+
+							<details class="support-report-preview">
+								<summary data-trans data-context="Action">See the full report</summary>
+								<pre></pre>
+							</details>
+
+							<div class="support-report-status" role="status" aria-live="polite"></div>
+						</main>
+						<footer>
+							<button data-support-report-send class="primary-button" data-trans data-context="Action" disabled>Send report</button>
+							<button type="button" data-support-report-restart class="tertiary-button" data-trans data-context="Action" data-comment="Discards the current support report and collects the diagnostics again">Start over</button>
+							<button data-modal-default-close data-support-report-discard class="tertiary-button" data-trans data-context="Action">Discard</button>
 						</footer>
 					</dialog>
 

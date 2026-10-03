@@ -121,6 +121,8 @@ import {configureGoToButtons} from './components/goToButton';
 import {updateAccessSentenceWithCounts} from './components/accessSentence';
 import {configureLinks, setNewTabLinkTitle} from './components/links';
 import {configureModalButtons} from './components/modals/modals';
+import {configureSupportReportModal} from './components/modals/supportReportModal';
+import {pickSimilarLogical} from './support/pickSimilarLogical';
 import {
 	configureRatingModalButtons,
 	maybeShowRatingModal,
@@ -1449,6 +1451,60 @@ export const start = async (area: HTMLElement) => {
 
 	configureModalButtons(area.querySelector<HTMLDivElement>('#modals')!);
 	configureRatingModalButtons(rateUsModal);
+	configureSupportReportModal(area, {
+		async tryAnotherServer(excludedIds) {
+			const excluded = excludedIds.map(String);
+			const current = connectionState?.server;
+			const availableLogicals = filterLogicalsWithCurrentFeatures(
+				logicals,
+				userTier,
+				features.secureCore.config,
+			);
+
+			if (isFreeTier) {
+				// Same rules as the free "Change server" button: random country, with a cooldown
+				if (state.connected && (await serverRotator!.isPending())) {
+					throw new Error(
+						c('Error')
+							.t`On the free plan, you can change server again in a few minutes.`,
+					);
+				}
+
+				const logical = requireRandomLogical(
+					excludeLogicalsFromCurrentCountry(
+						availableLogicals,
+						current?.exitCountry,
+					).filter((logical) => !excluded.includes(String(logical.ID))),
+					userContext,
+				);
+				await connectToServer(logical);
+				await serverRotator!.startCountdown();
+
+				return logical;
+			}
+
+			const logical = pickSimilarLogical(
+				availableLogicals,
+				current && {
+					id: current.id,
+					exitCountry: current.exitCountry,
+					exitEnglishCity: current.exitEnglishCity,
+				},
+				excludedIds,
+				userContext,
+			);
+
+			if (!logical) {
+				throw new Error(
+					c('Error').t`No other similar server is available right now.`,
+				);
+			}
+
+			await connectToServer(logical);
+
+			return logical;
+		},
+	});
 
 	watchBroadcastMessages({
 		logicalUpdate(logicalsInput: Logical[]) {
